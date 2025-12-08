@@ -9,6 +9,8 @@ import type {
   HandlerModule,
 } from './types';
 import { notFound, error } from './response';
+import { serveStaticFile } from '../utils/static';
+import { join } from 'path';
 
 /**
  * Core Router class
@@ -18,10 +20,12 @@ import { notFound, error } from './response';
  * - Dynamic imports for lazy-loaded handlers
  * - Middleware chains
  * - Multiple HTTP methods
+ * - Static file serving
  */
 export class Router {
   private routes: RouteDefinition[] = [];
   private globalMiddleware: Middleware[] = [];
+  private staticDir: string | null = null;
 
   /**
    * Register global middleware that runs on all routes
@@ -64,6 +68,15 @@ export class Router {
    */
   delete(pattern: string, handler: RouteHandler | HandlerImport, middleware: Middleware[] = []): this {
     return this.register('DELETE', pattern, handler, middleware);
+  }
+
+  /**
+   * Serve static files from a directory
+   * Example: router.static('public')
+   */
+  static(directory: string): this {
+    this.staticDir = join(process.cwd(), directory);
+    return this;
   }
 
   /**
@@ -192,6 +205,15 @@ export class Router {
       const url = new URL(request.url);
       const method = request.method as HttpMethod;
       const pathname = url.pathname;
+
+      // Try to serve static file if static directory is configured
+      // Support both GET and HEAD methods for static files
+      if (this.staticDir && (method === 'GET' || method === 'HEAD')) {
+        const staticResponse = await serveStaticFile(this.staticDir, pathname);
+        if (staticResponse) {
+          return staticResponse;
+        }
+      }
 
       // Build request context
       const ctx: RequestContext = {

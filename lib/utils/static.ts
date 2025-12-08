@@ -49,7 +49,9 @@ export async function serveStaticFile(
     const fullPath = join(publicDir, filePath);
 
     // Security check: ensure file is within public directory
-    if (!fullPath.startsWith(publicDir)) {
+    // Need to resolve both paths to handle symlinks properly
+    const resolvedPublicDir = join(publicDir, '/');
+    if (!fullPath.startsWith(resolvedPublicDir) && !fullPath.startsWith(publicDir)) {
       return null;
     }
 

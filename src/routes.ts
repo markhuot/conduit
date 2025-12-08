@@ -1,36 +1,22 @@
 import { Router } from '../lib/router';
 import { cors } from './middleware/cors';
 import { simpleLogger } from './middleware/logging';
-import { staticFiles } from './middleware/static';
-import { existsSync } from 'fs';
-import { join } from 'path';
 
 /**
  * Application routes
- * Laravel-style route registration
  */
 export function registerRoutes(router: Router): void {
   // Register global middleware
   router.use(cors());
   router.use(simpleLogger());
 
-  // Check if frontend build exists (production mode)
-  const publicDir = join(process.cwd(), 'dist/public');
-  const hasFrontendBuild = existsSync(publicDir);
+  // Serve static files from public directory
+  router.static('public');
 
-  if (hasFrontendBuild) {
-    // In production: serve static files and SPA
-    router.use(staticFiles({
-      publicDir: 'dist/public',
-      spa: true,
-      exclude: ['/api*'], // Don't serve static files for API routes
-    }));
-  } else {
-    // In development: serve API info on homepage
-    router.get('/', import('./handlers/home'));
-  }
+  // Homepage route
+  router.get('/', import('./handlers/home'));
 
-  // API routes (these work in both dev and production)
+  // API routes
   router.get('/api/info', import('./handlers/home'));
 
   // Future routes will be added here

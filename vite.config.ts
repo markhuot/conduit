@@ -9,7 +9,7 @@ export default defineConfig({
   
   // Output directory for production build
   build: {
-    outDir: '../../dist/public',
+    outDir: '../../public',
     emptyOutDir: true,
     sourcemap: true,
   },

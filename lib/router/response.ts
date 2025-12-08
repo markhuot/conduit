@@ -1,5 +1,10 @@
 /**
  * Response helper utilities for common HTTP responses
+ * 
+ * Framework-agnostic utilities for JSON, errors, redirects, etc.
+ * For framework-specific UI rendering, see:
+ * - lib/router/react/response.tsx (React SSR)
+ * - lib/router/vue/response.ts (Vue SSR - future)
  */
 
 /**
