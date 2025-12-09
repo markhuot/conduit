@@ -17,7 +17,7 @@ export interface BunAdapterOptions {
 export function createBunServer(router: Router, options: BunAdapterOptions = {}) {
   const {
     port = 3000,
-    hostname = 'localhost',
+    hostname = '127.0.0.1',
     development = true,
   } = options;
 

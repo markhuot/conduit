@@ -4,14 +4,11 @@
   "description": "Event-sourced CMS for LLM-native workflows",
   "type": "module",
   "scripts": {
-    "dev": "bun --hot src/server.ts",
+    "dev": "bun run dev:server & bun run dev:ui",
+    "dev:server": "bun --hot src/server.ts",
     "dev:ui": "vite",
-    "dev:all": "bun run dev & bun run dev:ui",
-    "start": "bun src/server.ts",
-    "build": "bun run build:backend && bun run build:ui",
-    "build:backend": "bun build src/server.ts --outdir ./dist --target bun",
-    "build:ui": "vite build",
-    "typecheck": "tsc --noEmit"
+    "dev:network": "HOSTNAME=0.0.0.0 bun run dev",
+    "build": "tsc --noEmit && vite build"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -26,6 +23,7 @@
   },
   "dependencies": {
     "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "react-dom": "^19.2.1",
+    "react-helmet-async": "^2.0.5"
   }
 }

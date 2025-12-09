@@ -7,7 +7,5 @@ import { Homepage } from '../ui/components/Homepage';
  * Server-side renders the React Homepage component
  */
 export default async function home(ctx: RequestContext): Promise<Response> {
-  return ui(<Homepage />, {
-    title: 'Project Conduit',
-  });
+  return ui(<Homepage />);
 }

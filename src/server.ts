@@ -13,7 +13,7 @@ registerRoutes(router);
  */
 const server = createBunServer(router, {
   port: Number(process.env.PORT) || 3000,
-  hostname: process.env.HOSTNAME || 'localhost',
+  hostname: process.env.HOSTNAME || '127.0.0.1',
   development: process.env.NODE_ENV !== 'production',
 });
 

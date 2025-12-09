@@ -5,32 +5,14 @@
  */
 
 import { renderToString } from 'react-dom/server';
+import { cloneElement } from 'react';
 import type { ReactElement } from 'react';
+import { HelmetProvider } from 'react-helmet-async';
 
 /**
  * UI response options
  */
 export interface UiOptions {
-  /**
-   * Page title (default: 'Project Conduit')
-   */
-  title?: string;
-  
-  /**
-   * Additional meta tags
-   */
-  meta?: Record<string, string>;
-  
-  /**
-   * Additional head content (scripts, links, etc.)
-   */
-  head?: string;
-  
-  /**
-   * Props to pass to the component
-   */
-  props?: Record<string, unknown>;
-  
   /**
    * HTTP status code (default: 200)
    */
@@ -40,6 +22,12 @@ export interface UiOptions {
    * Root element ID (default: 'root')
    */
   rootId?: string;
+  
+  /**
+   * Custom layout component (default: src/ui/layouts/default.tsx)
+   * The layout receives the page component as children
+   */
+  layout?: ReactElement;
 }
 
 /**
@@ -47,9 +35,13 @@ export interface UiOptions {
  * 
  * This function handles:
  * - Server-side rendering of React components
- * - HTML document structure generation
+ * - HTML document structure via layout components
+ * - Head management via react-helmet-async
  * - Proper Content-Type headers
- * - Customizable page metadata
+ * 
+ * The component is automatically wrapped in a layout. By default, it uses
+ * src/ui/layouts/default.tsx. Use react-helmet-async's <Helmet> component
+ * within your page components to set title, meta tags, and other head elements.
  * 
  * Future enhancements:
  * - Streaming SSR support
@@ -57,51 +49,90 @@ export interface UiOptions {
  * - Automatic code splitting
  * 
  * @example
- * ```ts
+ * ```tsx
  * import { ui } from '../../lib/router/react/response';
+ * import { Helmet } from 'react-helmet-async';
+ * 
+ * // Component with head management
+ * function Homepage() {
+ *   return (
+ *     <>
+ *       <Helmet>
+ *         <title>Home - My Site</title>
+ *         <meta name="description" content="Welcome to our site" />
+ *       </Helmet>
+ *       <h1>Welcome</h1>
+ *     </>
+ *   );
+ * }
+ * 
+ * // Handler (no await needed - return Promise directly)
+ * export default async function handler(ctx: RequestContext) {
+ *   return ui(<Homepage />);
+ * }
+ * 
+ * // With custom layout
+ * import { AdminLayout } from '../ui/layouts/admin';
  * 
  * export default async function handler(ctx: RequestContext) {
- *   return ui(<Homepage />, {
- *     title: 'Home',
- *     meta: { description: 'Welcome to our site' }
+ *   return ui(<Dashboard />, {
+ *     layout: <AdminLayout />
  *   });
  * }
  * ```
  */
-export function ui(
+export async function ui(
   component: ReactElement,
   options: UiOptions = {}
-): Response {
+): Promise<Response> {
   const {
-    title = 'Project Conduit',
-    meta = {},
-    head = '',
     status = 200,
     rootId = 'root',
+    layout,
   } = options;
   
-  // Render the React component to HTML string
-  const html = renderToString(component);
+  // Create helmet context for SSR
+  const helmetContext = {};
   
-  // Build meta tags
-  const metaTags = Object.entries(meta)
-    .map(([name, content]) => `  <meta name="${name}" content="${content}">`)
-    .join('\n');
+  let html: string;
   
-  // Wrap in HTML document
-  const document = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-${metaTags ? metaTags + '\n' : ''}${head ? head + '\n' : ''}</head>
-<body>
-  <div id="${rootId}">${html}</div>
-</body>
-</html>`;
+  // If custom layout provided, use it
+  if (layout) {
+    // Wrap layout in HelmetProvider
+    const layoutWithProvider = (
+      <HelmetProvider context={helmetContext}>
+        {cloneElement(layout, { rootId } as any, component)}
+      </HelmetProvider>
+    );
+    html = renderToString(layoutWithProvider);
+  } else {
+    // Use default layout
+    const { DefaultLayout } = await import('../../../src/ui/layouts/default');
+    const layoutElement = (
+      <HelmetProvider context={helmetContext}>
+        <DefaultLayout rootId={rootId}>
+          {component}
+        </DefaultLayout>
+      </HelmetProvider>
+    );
+    html = renderToString(layoutElement);
+  }
+  
+  // Extract helmet data and inject into head
+  const { helmet } = helmetContext as any;
+  if (helmet) {
+    // Inject helmet tags into the empty <head> tag
+    const headContent = [
+      helmet.meta.toString(),
+      helmet.title.toString(),
+      helmet.link.toString(),
+      helmet.script.toString(),
+    ].filter(Boolean).join('\n');
+    
+    html = html.replace('<head></head>', `<head>${headContent}</head>`);
+  }
 
-  return new Response(document, {
+  return new Response(`<!DOCTYPE html>\n${html}`, {
     status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

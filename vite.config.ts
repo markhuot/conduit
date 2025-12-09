@@ -16,6 +16,7 @@ export default defineConfig({
   
   // Development server configuration
   server: {
+    host: process.env.HOSTNAME || '127.0.0.1',
     port: 5173,
     strictPort: true,
     // Proxy API requests to backend during development
