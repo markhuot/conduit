@@ -1,3 +1,7 @@
+// Import config files to register services in container
+// This must happen before routes are registered
+import '../config/session';
+
 import { Router } from '../lib/router';
 import { createBunServer } from '../lib/adapters/bun';
 import { registerRoutes } from './routes';

@@ -1,5 +1,5 @@
-import type { RequestContext, Middleware } from '../../lib/router/types';
-import { serveStaticFile, serveSpaIndex } from '../../lib/utils/static';
+import type { RequestContext, Middleware } from '../router/types';
+import { serveStaticFile, serveSpaIndex } from '../utils/static';
 import { join } from 'path';
 
 export interface StaticOptions {

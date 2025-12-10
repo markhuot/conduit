@@ -1,4 +1,4 @@
-import type { RequestContext, Middleware } from '../../lib/router/types';
+import type { RequestContext, Middleware } from '../router/types';
 
 export interface LoggingOptions {
   /**

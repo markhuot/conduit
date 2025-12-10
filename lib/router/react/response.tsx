@@ -1,13 +1,7 @@
-/**
- * React-specific response utilities
- * 
- * Provides server-side rendering (SSR) for React components
- */
-
 import { renderToString } from 'react-dom/server';
-import { cloneElement } from 'react';
-import type { ReactElement } from 'react';
+import type { ReactElement, ComponentType } from 'react';
 import { HelmetProvider } from 'react-helmet-async';
+import { getRequestContext } from '../context';
 
 /**
  * UI response options
@@ -24,60 +18,33 @@ export interface UiOptions {
   rootId?: string;
   
   /**
-   * Custom layout component (default: src/ui/layouts/default.tsx)
-   * The layout receives the page component as children
+   * Custom layout component (explicit override)
+   * Overrides any layout set by middleware in request context
    */
-  layout?: ReactElement;
+  layout?: ComponentType<{ children: ReactElement }>;
 }
 
 /**
- * Create an HTML response with a server-rendered React component
+ * Server-side render a React component to HTML
  * 
- * This function handles:
- * - Server-side rendering of React components
- * - HTML document structure via layout components
- * - Head management via react-helmet-async
- * - Proper Content-Type headers
+ * Layout priority:
+ * 1. Explicit layout option passed to ui()
+ * 2. Layout from request context (set by middleware via ctx.layout)
+ * 3. Default layout from src/ui/layouts/default
  * 
- * The component is automatically wrapped in a layout. By default, it uses
- * src/ui/layouts/default.tsx. Use react-helmet-async's <Helmet> component
- * within your page components to set title, meta tags, and other head elements.
- * 
- * Future enhancements:
- * - Streaming SSR support
- * - Client-side hydration scripts
- * - Automatic code splitting
+ * The request context is automatically available via AsyncLocalStorage,
+ * so handlers don't need to pass it around.
  * 
  * @example
  * ```tsx
- * import { ui } from '../../lib/router/react/response';
- * import { Helmet } from 'react-helmet-async';
- * 
- * // Component with head management
- * function Homepage() {
- *   return (
- *     <>
- *       <Helmet>
- *         <title>Home - My Site</title>
- *         <meta name="description" content="Welcome to our site" />
- *       </Helmet>
- *       <h1>Welcome</h1>
- *     </>
- *   );
+ * // Handler - no context parameter needed!
+ * export default function handler(ctx: RequestContext) {
+ *   return ui(<HomePage />);  // Layout comes from middleware
  * }
  * 
- * // Handler (no await needed - return Promise directly)
- * export default async function handler(ctx: RequestContext) {
- *   return ui(<Homepage />);
- * }
- * 
- * // With custom layout
- * import { AdminLayout } from '../ui/layouts/admin';
- * 
- * export default async function handler(ctx: RequestContext) {
- *   return ui(<Dashboard />, {
- *     layout: <AdminLayout />
- *   });
+ * // Or override layout explicitly
+ * export default function handler(ctx: RequestContext) {
+ *   return ui(<SpecialPage />, { layout: CustomLayout });
  * }
  * ```
  */
@@ -85,54 +52,50 @@ export async function ui(
   component: ReactElement,
   options: UiOptions = {}
 ): Promise<Response> {
-  const {
-    status = 200,
-    rootId = 'root',
-    layout,
-  } = options;
+  const ctx = getRequestContext();  // Get context from AsyncLocalStorage
+  const { status = 200, rootId = 'root', layout } = options;
   
-  // Create helmet context for SSR
+  // Layout priority
+  let LayoutComponent: ComponentType<{ children: ReactElement }>;
+  
+  if (layout) {
+    // 1. Explicit layout option
+    LayoutComponent = layout;
+  } else if (ctx.layout) {
+    // 2. Layout from request context (set by middleware)
+    LayoutComponent = ctx.layout;
+  } else {
+    // 3. Default layout
+    const defaultLayout = await import('../../../src/ui/layouts/default');
+    LayoutComponent = defaultLayout.DefaultLayout;
+  }
+  
+  // Render with layout
   const helmetContext = {};
   
-  let html: string;
+  const html = renderToString(
+    <HelmetProvider context={helmetContext}>
+      <LayoutComponent>
+        {component}
+      </LayoutComponent>
+    </HelmetProvider>
+  );
   
-  // If custom layout provided, use it
-  if (layout) {
-    // Wrap layout in HelmetProvider
-    const layoutWithProvider = (
-      <HelmetProvider context={helmetContext}>
-        {cloneElement(layout, { rootId } as any, component)}
-      </HelmetProvider>
-    );
-    html = renderToString(layoutWithProvider);
-  } else {
-    // Use default layout
-    const { DefaultLayout } = await import('../../../src/ui/layouts/default');
-    const layoutElement = (
-      <HelmetProvider context={helmetContext}>
-        <DefaultLayout rootId={rootId}>
-          {component}
-        </DefaultLayout>
-      </HelmetProvider>
-    );
-    html = renderToString(layoutElement);
-  }
-  
-  // Extract helmet data and inject into head
   const { helmet } = helmetContext as any;
-  if (helmet) {
-    // Inject helmet tags into the empty <head> tag
-    const headContent = [
-      helmet.meta.toString(),
-      helmet.title.toString(),
-      helmet.link.toString(),
-      helmet.script.toString(),
-    ].filter(Boolean).join('\n');
-    
-    html = html.replace('<head></head>', `<head>${headContent}</head>`);
-  }
+  
+  const document = `<!DOCTYPE html>
+<html ${helmet.htmlAttributes.toString()}>
+<head>
+  ${helmet.title.toString()}
+  ${helmet.meta.toString()}
+  ${helmet.link.toString()}
+</head>
+<body ${helmet.bodyAttributes.toString()}>
+  <div id="${rootId}">${html}</div>
+</body>
+</html>`;
 
-  return new Response(`<!DOCTYPE html>\n${html}`, {
+  return new Response(document, {
     status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

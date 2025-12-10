@@ -1,6 +1,7 @@
 import { Router } from '../lib/router';
-import { cors } from './middleware/cors';
-import { simpleLogger } from './middleware/logging';
+import { adminRoutes } from '../lib/admin/routes';
+import { cors } from '../lib/middleware/cors';
+import { simpleLogger } from '../lib/middleware/logging';
 
 /**
  * Application routes
@@ -16,8 +17,8 @@ export function registerRoutes(router: Router): void {
   // Homepage route
   router.get('/', import('./handlers/home'));
 
-  // API routes
-  router.get('/api/info', import('./handlers/home'));
+  // Admin panel (drop-in from library)
+  router.group('/admin', adminRoutes);
 
   // Future routes will be added here
   // Example routes from spec (not implemented yet):

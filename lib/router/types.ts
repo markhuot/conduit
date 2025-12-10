@@ -1,3 +1,6 @@
+import type { Session } from '../session';
+import type { ComponentType, ReactElement } from 'react';
+
 /**
  * Request context passed to handlers and middleware
  */
@@ -6,6 +9,8 @@ export interface RequestContext {
   params: Record<string, string>;
   query: URLSearchParams;
   url: URL;
+  session?: Session;  // Added by auth middleware
+  layout?: ComponentType<{ children: ReactElement }>;  // Added by layout middleware
 }
 
 /**
