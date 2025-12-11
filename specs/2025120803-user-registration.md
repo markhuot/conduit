@@ -3,7 +3,7 @@
 **Spec ID**: 2025120803  
 **Created**: 2025-12-10  
 **Updated**: 2025-12-10  
-**Status**: 🔨 In Progress  
+**Status**: ✅ Complete  
 **Phase**: Event Sourcing Foundation  
 **Dependencies**: 2025120802-admin.md
 
@@ -19,7 +19,7 @@ This spec defines the first event-sourced feature for Project Conduit: user regi
 5. Foundation for all future event-sourced features
 6. **Convention-based bootstrapping** - config files initialize their own services, keeping server.ts clean
 
-**Implementation Status:** 🔨 Planning Phase
+**Implementation Status:** ✅ Complete - All phases implemented and tested
 
 **Architectural Note:** This spec establishes a critical convention where each `config/*.ts` file is responsible for creating, initializing, and registering its own services. This keeps `src/server.ts` minimal (just imports) and provides a clear pattern for future stores (content, assets, search, etc.). Each config file bootstraps its store, registers event listeners, and handles all async initialization using top-level await.
 
@@ -252,6 +252,209 @@ register('database', async () => {
 │  }                                                          │
 └────────────────────────────────────────────────────────────┘
 ```
+
+### Flash Message Pattern (Security Enhancement)
+
+**Problem**: Storing error/success messages in URL query parameters (`?error=...`) is insecure:
+- Malicious actors can craft URLs with fake error messages
+- URLs get logged in browser history and server logs
+- Query strings pollute the URL and can be shared/bookmarked
+
+**Solution**: Store messages in session flash + request context (one-time messages accessible via React hooks):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   POST /admin/register                       │
+│                   (validation fails)                         │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  1. Create/update session with flash.errors.email           │
+│  2. Set session cookie                                       │
+│  3. Redirect to /admin/register (clean URL)                 │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│              GET /admin/register                             │
+│  1. flashMiddleware() reads session, loads flash to context │
+│  2. Component uses useFlash() / useFieldError() hooks       │
+│  3. Flash automatically cleared from session                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Architecture: Flash Messages in Request Context**
+
+**Session Flash API** (lib/session/index.ts):
+
+```typescript
+// Flash message structure
+interface FlashMessages {
+  error?: string;          // General error message
+  success?: string;        // Success message
+  info?: string;           // Info message
+  errors?: Record<string, string[]>;  // Field-specific validation errors
+}
+
+// Set flash error (creates temp session if needed)
+export async function setFlashError(
+  sessionId: string | null, 
+  message: string
+): Promise<Session>
+
+// Set field-specific validation errors
+export async function setFlashErrors(
+  sessionId: string | null,
+  errors: Record<string, string[]>
+): Promise<Session>
+
+// Set flash success
+export async function setFlashSuccess(
+  sessionId: string | null, 
+  message: string
+): Promise<Session>
+
+// Get and clear flash messages (one-time read)
+export async function getFlash(
+  sessionId: string | null
+): Promise<FlashMessages | undefined>
+```
+
+**Flash Middleware** (lib/middleware/flash.ts):
+
+```typescript
+import type { Middleware } from '../router/types';
+import { getSessionIdFromRequest, getFlash } from '../session';
+
+/**
+ * Flash middleware
+ * 
+ * Loads flash messages from session into request context.
+ * Messages are automatically cleared after being read (one-time).
+ * 
+ * Add this middleware to routes that need flash message support.
+ */
+export function flashMiddleware(): Middleware {
+  return async (request, context, next) => {
+    const sessionId = getSessionIdFromRequest(request);
+    const flash = await getFlash(sessionId);
+    
+    // Add flash to context (accessible to handlers and components)
+    context.flash = flash;
+    
+    return next();
+  };
+}
+```
+
+**Request Context Extension** (lib/router/types.ts):
+
+```typescript
+export interface RequestContext {
+  // ... existing fields ...
+  flash?: FlashMessages;  // Flash messages from session
+}
+```
+
+**React Hooks** (lib/router/react/hooks.ts):
+
+```typescript
+import { useContext } from 'react';
+import { RequestContext } from '../context';
+
+/**
+ * Access flash messages from request context
+ */
+export function useFlash() {
+  const context = useContext(RequestContext);
+  return context.flash;
+}
+
+/**
+ * Get all errors for a specific field
+ */
+export function useFieldErrors(field: string): string[] | undefined {
+  const flash = useFlash();
+  return flash?.errors?.[field];
+}
+
+/**
+ * Get first error for a specific field (for simple display)
+ */
+export function useFieldError(field: string): string | undefined {
+  const errors = useFieldErrors(field);
+  return errors?.[0];
+}
+```
+
+**Usage in Components**:
+
+```typescript
+// lib/admin/ui/RegistrationForm.tsx
+
+import { useFlash, useFieldError } from '../../router/react/hooks';
+
+export function RegistrationForm() {
+  const flash = useFlash();
+  const emailError = useFieldError('email');
+  
+  return (
+    <form method="POST" action="/admin/register">
+      {flash?.error && (
+        <div role="alert">{flash.error}</div>
+      )}
+      
+      <div>
+        <label htmlFor="email">Email</label>
+        <input type="email" id="email" name="email" required />
+        {emailError && <span className="error">{emailError}</span>}
+      </div>
+      
+      {/* ... rest of form ... */}
+    </form>
+  );
+}
+```
+
+**Usage in Handlers**:
+
+```typescript
+// lib/admin/handlers/processRegistration.ts
+
+import { setFlashErrors } from '../../session';
+import { getSessionIdFromRequest } from '../../session';
+
+export default async function processRegistration(
+  request: Request,
+  context: RequestContext
+): Promise<Response> {
+  // ... validation ...
+  
+  if (await store.exists(email)) {
+    const sessionId = getSessionIdFromRequest(request);
+    const session = await setFlashErrors(sessionId, {
+      email: ['Email already registered']
+    });
+    
+    const response = redirect('/admin/register');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
+  }
+  
+  // ... emit event ...
+}
+```
+
+**Benefits**:
+- ✅ Clean redirect URLs (no query parameters)
+- ✅ Messages automatically cleared after display (flash behavior)
+- ✅ No URL manipulation attacks
+- ✅ No prop drilling - components access via hooks
+- ✅ Field-specific validation errors (`errors.email`, `errors.password`)
+- ✅ Temporary sessions for unauthenticated users (5 min expiry)
+- ✅ Supports multiple message types (error, success, info)
+- ✅ Type-safe access via React hooks
 
 ## Implementation Details
 
@@ -735,29 +938,40 @@ import { RegistrationForm } from '../ui/RegistrationForm';
 /**
  * GET /admin/register
  * Show registration form
+ * 
+ * Flash messages automatically loaded by flashMiddleware into context.flash
  * Layout automatically used from request context (set by withLayout middleware)
+ * Component accesses flash via useFlash() hook - no props needed
  */
 export default function register(request: Request, context: RequestContext): Promise<Response> {
-  const error = context.query.get('error');
-  
-  return ui(<RegistrationForm error={error} />);
+  return ui(<RegistrationForm />);
 }
 ```
 
 ### 7. Registration Form Component (lib/admin/ui/RegistrationForm.tsx)
 
-React component (no CSS):
+React component using hooks for flash messages (no CSS):
 
 ```typescript
 // lib/admin/ui/RegistrationForm.tsx
 
 import { Helmet } from 'react-helmet-async';
+import { useFlash, useFieldError } from '../../router/react/hooks';
 
-interface RegistrationFormProps {
-  error?: string | null;
-}
-
-export function RegistrationForm({ error }: RegistrationFormProps) {
+/**
+ * Registration form component
+ * 
+ * Uses React hooks to access flash messages from request context:
+ * - useFlash() - Access all flash messages
+ * - useFieldError(field) - Get first error for a specific field
+ * 
+ * No props needed - flash messages come from context via middleware
+ */
+export function RegistrationForm() {
+  const flash = useFlash();
+  const emailError = useFieldError('email');
+  const passwordError = useFieldError('password');
+  
   return (
     <>
       <Helmet>
@@ -770,9 +984,15 @@ export function RegistrationForm({ error }: RegistrationFormProps) {
           <p>Register a new administrator</p>
         </header>
         
-        {error && (
+        {flash?.error && (
           <div role="alert">
-            {decodeURIComponent(error)}
+            {flash.error}
+          </div>
+        )}
+        
+        {flash?.success && (
+          <div role="alert">
+            {flash.success}
           </div>
         )}
         
@@ -787,6 +1007,9 @@ export function RegistrationForm({ error }: RegistrationFormProps) {
               autoFocus
               autoComplete="email"
             />
+            {emailError && (
+              <span className="error">{emailError}</span>
+            )}
           </div>
           
           <div>
@@ -800,6 +1023,9 @@ export function RegistrationForm({ error }: RegistrationFormProps) {
               autoComplete="new-password"
             />
             <small>Minimum 8 characters</small>
+            {passwordError && (
+              <span className="error">{passwordError}</span>
+            )}
           </div>
           
           <div>
@@ -828,17 +1054,23 @@ export function RegistrationForm({ error }: RegistrationFormProps) {
 
 ### 8. Registration Processor (lib/admin/handlers/processRegistration.ts)
 
-POST handler that emits event:
+POST handler that emits event and uses flash for errors:
 
 ```typescript
 // lib/admin/handlers/processRegistration.ts
 
 import type { RequestContext } from '../../router/types';
 import { redirect } from '../../router/response';
-import { resolve } from '../../src/container';
+import { resolve } from '../../../src/container';
 import type { UserConfig } from '../../users/types';
 import type { UserRegisteredEvent } from '../../events/types';
 import type { EventStore } from '../../events/store';
+import { 
+  getSessionIdFromRequest, 
+  setFlashError, 
+  setFlashErrors, 
+  createSessionCookie 
+} from '../../session';
 
 /**
  * POST /admin/register
@@ -846,6 +1078,9 @@ import type { EventStore } from '../../events/store';
  * 
  * This handler ONLY validates and emits the event.
  * The UserListener handles writing to the user store.
+ * 
+ * Uses session flash for error messages (no query parameters).
+ * Supports field-specific errors via setFlashErrors().
  */
 export default async function processRegistration(
   request: Request,
@@ -856,17 +1091,28 @@ export default async function processRegistration(
   const password = formData.get('password')?.toString();
   const passwordConfirm = formData.get('passwordConfirm')?.toString();
 
+  const sessionId = getSessionIdFromRequest(request);
+
   // Validation
   if (!email || !password || !passwordConfirm) {
-    return redirect('/admin/register?error=' + encodeURIComponent('All fields required'));
+    const session = await setFlashError(sessionId, 'All fields required');
+    const response = redirect('/admin/register');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
 
   if (password !== passwordConfirm) {
-    return redirect('/admin/register?error=' + encodeURIComponent('Passwords do not match'));
+    const session = await setFlashError(sessionId, 'Passwords do not match');
+    const response = redirect('/admin/register');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
 
   if (password.length < 8) {
-    return redirect('/admin/register?error=' + encodeURIComponent('Password must be at least 8 characters'));
+    const session = await setFlashError(sessionId, 'Password must be at least 8 characters');
+    const response = redirect('/admin/register');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
 
   // Check if email already exists (read-only query)
@@ -874,7 +1120,13 @@ export default async function processRegistration(
   const exists = await store.exists(email);
   
   if (exists) {
-    return redirect('/admin/register?error=' + encodeURIComponent('Email already registered'));
+    // Use field-specific error for email field
+    const session = await setFlashErrors(sessionId, {
+      email: ['Email already registered']
+    });
+    const response = redirect('/admin/register');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
 
   // Hash password with argon2
@@ -899,8 +1151,8 @@ export default async function processRegistration(
 
   await eventStore.emit(event);
 
-  // Redirect to login
-  return redirect('/admin/login?registered=true');
+  // Redirect to login (clean URL, no query parameters)
+  return redirect('/admin/login');
 }
 
 /**
@@ -918,34 +1170,45 @@ async function hashPassword(password: string): Promise<string> {
 
 ### 9. Update Authentication Handler (lib/admin/handlers/authenticate.ts)
 
-Replace hardcoded credentials with user store lookup:
+Replace hardcoded credentials with user store lookup, use flash for errors:
 
 ```typescript
 // lib/admin/handlers/authenticate.ts
 
 import type { RequestContext } from '../../router/types';
 import { redirect } from '../../router/response';
-import { createSession, createSessionCookie } from '../../session';
-import { resolve } from '../../src/container';
+import { 
+  createSession, 
+  createSessionCookie,
+  getSessionIdFromRequest,
+  setFlashError 
+} from '../../session';
+import { resolve } from '../../../src/container';
 import type { UserConfig } from '../../users/types';
 
 /**
  * POST /admin/login
  * Authenticate user and create session
  * Uses user store instead of hardcoded credentials
+ * Uses session flash for error messages (no query parameters)
  */
 export default async function authenticate(
   request: Request,
   context: RequestContext
 ): Promise<Response> {
   const formData = await request.formData();
-  const email = formData.get('email')?.toString();  // Changed from username
+  const email = formData.get('email')?.toString();
   const password = formData.get('password')?.toString();
   const returnTo = formData.get('return')?.toString() || '/admin/dashboard';
   
+  const sessionId = getSessionIdFromRequest(request);
+  
   // Validate input
   if (!email || !password) {
-    return redirect('/admin/login?error=' + encodeURIComponent('Email and password required'));
+    const session = await setFlashError(sessionId, 'Email and password required');
+    const response = redirect('/admin/login');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
   
   // Lookup user in store
@@ -953,14 +1216,20 @@ export default async function authenticate(
   const user = await store.findByEmail(email);
   
   if (!user) {
-    return redirect('/admin/login?error=' + encodeURIComponent('Invalid credentials'));
+    const session = await setFlashError(sessionId, 'Invalid credentials');
+    const response = redirect('/admin/login');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
   
   // Verify password
   const valid = await Bun.password.verify(password, user.passwordHash);
   
   if (!valid) {
-    return redirect('/admin/login?error=' + encodeURIComponent('Invalid credentials'));
+    const session = await setFlashError(sessionId, 'Invalid credentials');
+    const response = redirect('/admin/login');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
   
   // Create session (use user ID instead of email)
@@ -976,14 +1245,27 @@ export default async function authenticate(
 
 ### 10. Update Login Form (lib/admin/ui/LoginForm.tsx)
 
-Change username field to email:
+Change username field to email, use hooks for flash messages:
 
 ```typescript
 // lib/admin/ui/LoginForm.tsx
 
-// ... (keep existing imports and interface) ...
+import { Helmet } from 'react-helmet-async';
+import { useFlash } from '../../router/react/hooks';
 
-export function LoginForm({ error, returnTo }: LoginFormProps) {
+interface LoginFormProps {
+  returnTo?: string;
+}
+
+/**
+ * Login form component
+ * 
+ * Uses useFlash() hook to access flash messages from request context.
+ * No error prop needed - flash messages come from middleware.
+ */
+export function LoginForm({ returnTo }: LoginFormProps) {
+  const flash = useFlash();
+  
   return (
     <>
       <Helmet>
@@ -996,9 +1278,15 @@ export function LoginForm({ error, returnTo }: LoginFormProps) {
           <p>Admin Login</p>
         </header>
         
-        {error && (
+        {flash?.error && (
           <div role="alert">
-            {decodeURIComponent(error)}
+            {flash.error}
+          </div>
+        )}
+        
+        {flash?.success && (
+          <div role="alert">
+            {flash.success}
           </div>
         )}
         
@@ -1006,14 +1294,14 @@ export function LoginForm({ error, returnTo }: LoginFormProps) {
           <input type="hidden" name="return" value={returnTo || '/admin/dashboard'} />
           
           <div>
-            <label htmlFor="email">Email</label>  {/* Changed from Username */}
+            <label htmlFor="email">Email</label>
             <input
-              type="email"  {/* Changed from text */}
-              id="email"    {/* Changed from username */}
-              name="email"  {/* Changed from username */}
+              type="email"
+              id="email"
+              name="email"
               required
               autoFocus
-              autoComplete="email"  {/* Changed from username */}
+              autoComplete="email"
             />
           </div>
           
@@ -1032,7 +1320,7 @@ export function LoginForm({ error, returnTo }: LoginFormProps) {
         </form>
         
         <footer>
-          <p>Don't have an account? <a href="/admin/register">Register</a></p>  {/* New */}
+          <p>Don't have an account? <a href="/admin/register">Register</a></p>
         </footer>
       </div>
     </>
@@ -1080,7 +1368,7 @@ console.log(`👥 User store registered`);
 
 ### 12. Update Admin Routes (lib/admin/routes.ts)
 
-Add registration routes:
+Add registration routes and flash middleware:
 
 ```typescript
 // lib/admin/routes.ts
@@ -1088,18 +1376,22 @@ Add registration routes:
 import type { RouteGroup } from '../router';
 import { requireAuth, redirectIfAuth } from '../auth/middleware';
 import { withLayout } from '../router/react/middleware';
+import { flashMiddleware } from '../middleware/flash';
 import { AdminLayout } from './ui/AdminLayout';
 
 export function adminRoutes(group: RouteGroup): void {
   // Apply admin layout to all routes
   group.use(withLayout(AdminLayout));
   
+  // Apply flash middleware to load flash messages into context
+  group.use(flashMiddleware());
+  
   // Public routes (login and registration)
   group.get('/login', import('./handlers/login'), [redirectIfAuth()]);
   group.post('/login', import('./handlers/authenticate'));
   
-  group.get('/register', import('./handlers/register'), [redirectIfAuth()]);  // NEW
-  group.post('/register', import('./handlers/processRegistration'));           // NEW
+  group.get('/register', import('./handlers/register'), [redirectIfAuth()]);
+  group.post('/register', import('./handlers/processRegistration'));
   
   // Logout (POST because it changes state)
   group.post('/logout', import('./handlers/logout'), [requireAuth()]);
@@ -1298,6 +1590,13 @@ console.log(`🚀 Server running at http://${server.hostname}:${server.port}`);
 - **Event Log Security**: Events contain password hashes (already hashed)
 - **File Permissions**: Event and user files should be readable only by server process
 - **No Plain Passwords**: Passwords never stored in plain text or in events
+- **Flash Messages via Context**: Error and success messages stored in session and accessed via request context
+  - Prevents malicious actors from crafting URLs with bogus error messages
+  - Cleaner redirect URLs (no query string pollution)
+  - Messages automatically cleared after being read once (flash behavior)
+  - No prop drilling - components access via React hooks
+  - Field-specific validation errors supported (`errors.email`, `errors.password`)
+  - Temporary sessions created for unauthenticated users to hold flash messages (5 min expiry)
 
 ## Testing Strategy
 

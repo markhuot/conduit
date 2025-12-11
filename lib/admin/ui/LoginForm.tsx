@@ -1,11 +1,13 @@
 import { Helmet } from 'react-helmet-async';
+import { useFlash } from '../../router/react/hooks';
 
 interface LoginFormProps {
-  error?: string | null;
   returnTo?: string;
 }
 
-export function LoginForm({ error, returnTo }: LoginFormProps) {
+export function LoginForm({ returnTo }: LoginFormProps) {
+  const flash = useFlash();
+  
   return (
     <>
       <Helmet>
@@ -18,9 +20,15 @@ export function LoginForm({ error, returnTo }: LoginFormProps) {
           <p>Admin Login</p>
         </header>
         
-        {error && (
+        {flash?.error && (
           <div role="alert">
-            {decodeURIComponent(error)}
+            {flash.error}
+          </div>
+        )}
+        
+        {flash?.success && (
+          <div role="status">
+            {flash.success}
           </div>
         )}
         
@@ -28,14 +36,14 @@ export function LoginForm({ error, returnTo }: LoginFormProps) {
           <input type="hidden" name="return" value={returnTo || '/admin/dashboard'} />
           
           <div>
-            <label htmlFor="username">Username</label>
+            <label htmlFor="email">Email</label>
             <input
-              type="text"
-              id="username"
-              name="username"
+              type="email"
+              id="email"
+              name="email"
               required
               autoFocus
-              autoComplete="username"
+              autoComplete="email"
             />
           </div>
           
@@ -54,7 +62,7 @@ export function LoginForm({ error, returnTo }: LoginFormProps) {
         </form>
         
         <footer>
-          <p>Default credentials: <code>admin</code> / <code>admin</code></p>
+          <p>Don't have an account? <a href="/admin/register">Register</a></p>
         </footer>
       </div>
     </>

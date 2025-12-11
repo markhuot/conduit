@@ -2,6 +2,16 @@ import type { Session } from '../session';
 import type { ComponentType, ReactElement } from 'react';
 
 /**
+ * Flash messages from session
+ */
+export interface FlashMessages {
+  error?: string;
+  success?: string;
+  info?: string;
+  errors?: Record<string, string[]>;  // Field-specific errors
+}
+
+/**
  * Request context passed to handlers and middleware
  */
 export interface RequestContext {
@@ -11,6 +21,7 @@ export interface RequestContext {
   url: URL;
   session?: Session;  // Added by auth middleware
   layout?: ComponentType<{ children: ReactElement }>;  // Added by layout middleware
+  flash?: FlashMessages;  // Flash messages from session
 }
 
 /**

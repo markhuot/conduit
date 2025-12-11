@@ -1,10 +1,21 @@
 import { resolve } from '../../src/container';
 
+/**
+ * Flash messages from session
+ */
+export interface FlashMessages {
+  error?: string;
+  success?: string;
+  info?: string;
+  errors?: Record<string, string[]>;  // Field-specific errors
+}
+
 export interface Session {
   id: string;
   userId: string;
   createdAt: number;
   expiresAt: number;
+  flash?: FlashMessages;
 }
 
 /**
@@ -92,4 +103,112 @@ export function createSessionCookie(session: Session): string {
  */
 export function createLogoutCookie(): string {
   return 'session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0';
+}
+
+/**
+ * Flash message helpers
+ * Flash messages are stored in session and cleared after being read once
+ */
+
+/**
+ * Set a flash error message in session
+ * Creates a temporary session if user is not logged in
+ */
+export async function setFlashError(sessionId: string | null, message: string): Promise<Session> {
+  let session: Session | null = sessionId ? await getSession(sessionId) : null;
+  
+  if (!session) {
+    // Create temporary session for flash message
+    session = {
+      id: crypto.randomUUID(),
+      userId: '', // Empty for temporary sessions
+      createdAt: Date.now(),
+      expiresAt: Date.now() + (5 * 60 * 1000), // 5 minutes
+      flash: { error: message },
+    };
+  } else {
+    session.flash = { ...session.flash, error: message };
+  }
+  
+  await getSessionStore().set(session);
+  return session;
+}
+
+/**
+ * Set field-specific validation errors
+ * errors = { email: ['Email already taken'], password: ['Too short', 'No special chars'] }
+ */
+export async function setFlashErrors(sessionId: string | null, errors: Record<string, string[]>): Promise<Session> {
+  let session: Session | null = sessionId ? await getSession(sessionId) : null;
+  
+  if (!session) {
+    session = {
+      id: crypto.randomUUID(),
+      userId: '',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + (5 * 60 * 1000),
+      flash: { errors },
+    };
+  } else {
+    session.flash = { ...session.flash, errors };
+  }
+  
+  await getSessionStore().set(session);
+  return session;
+}
+
+/**
+ * Set a flash success message in session
+ */
+export async function setFlashSuccess(sessionId: string | null, message: string): Promise<Session> {
+  let session: Session | null = sessionId ? await getSession(sessionId) : null;
+  
+  if (!session) {
+    session = {
+      id: crypto.randomUUID(),
+      userId: '',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + (5 * 60 * 1000),
+      flash: { success: message },
+    };
+  } else {
+    session.flash = { ...session.flash, success: message };
+  }
+  
+  await getSessionStore().set(session);
+  return session;
+}
+
+/**
+ * Get and clear flash messages from session
+ * Returns the flash messages and removes them from the session
+ */
+export async function getFlash(sessionId: string | null): Promise<FlashMessages | undefined> {
+  if (!sessionId) return undefined;
+  
+  const session = await getSession(sessionId);
+  if (!session || !session.flash) return undefined;
+  
+  const flash = session.flash;
+  
+  // Clear flash messages from session
+  session.flash = undefined;
+  await getSessionStore().set(session);
+  
+  return flash;
+}
+
+/**
+ * Get session ID from request cookie
+ */
+export function getSessionIdFromRequest(request: Request): string | null {
+  const cookie = request.headers.get('cookie');
+  if (!cookie) return null;
+  
+  const sessionId = cookie
+    .split(';')
+    .find(c => c.trim().startsWith('session='))
+    ?.split('=')[1];
+  
+  return sessionId || null;
 }

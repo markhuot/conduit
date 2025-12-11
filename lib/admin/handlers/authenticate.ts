@@ -1,39 +1,55 @@
 import type { RequestContext } from '../../router/types';
 import { redirect } from '../../router/response';
-import { createSession, createSessionCookie } from '../../session';
-
-// TODO: Move to database or environment variables
-const ADMIN_CREDENTIALS = {
-  username: 'admin',
-  password: 'admin', // In production: hash with argon2
-};
+import { createSession, createSessionCookie, setFlashError, getSessionIdFromRequest } from '../../session';
+import { resolve } from '../../../src/container';
+import type { UserConfig } from '../../users/types';
 
 /**
  * POST /admin/login
  * Authenticate user and create session
- * Uses native FormData from HTML form submission
+ * Uses user store and stores errors in session flash messages
  */
 export default async function authenticate(
   ctx: RequestContext
 ): Promise<Response> {
-  // Parse form data (native web platform FormData API)
   const formData = await ctx.request.formData();
-  const username = formData.get('username')?.toString();
+  const email = formData.get('email')?.toString();
   const password = formData.get('password')?.toString();
   const returnTo = formData.get('return')?.toString() || '/admin/dashboard';
   
-  // Validate credentials
-  if (!username || !password) {
-    return redirect('/admin/login?error=' + encodeURIComponent('Username and password required'));
+  const sessionId = getSessionIdFromRequest(ctx.request);
+  
+  // Validate input
+  if (!email || !password) {
+    const session = await setFlashError(sessionId, 'Email and password required');
+    const response = redirect('/admin/login');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
   
-  // Check credentials (replace with database lookup in production)
-  if (username !== ADMIN_CREDENTIALS.username || password !== ADMIN_CREDENTIALS.password) {
-    return redirect('/admin/login?error=' + encodeURIComponent('Invalid credentials'));
+  // Lookup user in store
+  const { store } = resolve<UserConfig>('users');
+  const user = await store.findByEmail(email);
+  
+  if (!user) {
+    const session = await setFlashError(sessionId, 'Invalid credentials');
+    const response = redirect('/admin/login');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
   }
   
-  // Create session
-  const session = await createSession(username);
+  // Verify password
+  const valid = await Bun.password.verify(password, user.passwordHash);
+  
+  if (!valid) {
+    const session = await setFlashError(sessionId, 'Invalid credentials');
+    const response = redirect('/admin/login');
+    response.headers.append('Set-Cookie', createSessionCookie(session));
+    return response;
+  }
+  
+  // Create session (use user ID instead of email)
+  const session = await createSession(user.id);
   
   // Set cookie and redirect
   const response = redirect(returnTo);

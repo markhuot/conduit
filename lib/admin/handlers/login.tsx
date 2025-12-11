@@ -5,11 +5,10 @@ import { LoginForm } from '../ui/LoginForm';
 /**
  * GET /admin/login
  * Show login form
- * Layout automatically used from container
+ * Flash messages automatically available in context
  */
-export default function login(ctx: RequestContext): Promise<Response> {
-  const error = ctx.query.get('error');
+export default async function login(ctx: RequestContext): Promise<Response> {
   const returnTo = ctx.query.get('return') || '/admin/dashboard';
   
-  return ui(<LoginForm error={error} returnTo={returnTo} />);
+  return ui(<LoginForm returnTo={returnTo} />);
 }

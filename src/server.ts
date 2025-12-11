@@ -1,6 +1,21 @@
-// Import config files to register services in container
-// This must happen before routes are registered
+/**
+ * Import config files to register and bootstrap services
+ * 
+ * ORDER DOESN'T MATTER (except events must be imported):
+ * - config/session - Session store (independent)
+ * - config/users - User store (independent)
+ * - config/events - Event store + ALL listeners (independent)
+ * 
+ * Each store config file just registers its store in the container.
+ * Event listeners are ALL registered in config/events.ts to avoid
+ * circular dependencies.
+ * 
+ * This keeps server.ts clean and establishes a convention
+ * for future stores (content, assets, etc.)
+ */
 import '../config/session';
+import '../config/users';
+import '../config/events';
 
 import { Router } from '../lib/router';
 import { createBunServer } from '../lib/adapters/bun';
