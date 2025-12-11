@@ -6,9 +6,8 @@ import type {
   RouteMatch,
   RequestContext,
   HandlerImport,
-  HandlerModule,
 } from './types';
-import { notFound, error } from './response';
+import { errorToResponse, NotFoundError } from './errors';
 import { serveStaticFile } from '../utils/static';
 import { join } from 'path';
 import { runWithContext } from './context';
@@ -254,7 +253,7 @@ export class Router {
         if (!match) {
           // No route match - run global middleware with 404 handler
           const notFoundHandler = (): Response => {
-            return notFound(`Route not found: ${method} ${pathname}`);
+            throw new NotFoundError(`Route not found: ${method} ${pathname}`);
           };
           
           return await this.executeMiddlewareChain(ctx, this.globalMiddleware, notFoundHandler);
@@ -272,9 +271,9 @@ export class Router {
       
     } catch (err) {
       console.error('Router error:', err);
-      return error(
-        err instanceof Error ? err.message : 'Internal server error',
-        { status: 500 }
+      return errorToResponse(
+        err instanceof Error ? err : new Error('Internal server error'),
+        process.env.NODE_ENV !== 'production'
       );
     }
   }

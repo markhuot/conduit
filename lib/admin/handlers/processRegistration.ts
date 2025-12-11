@@ -8,7 +8,7 @@
  */
 
 import type { RequestContext } from '../../router/types';
-import { redirect } from '../../router/response';
+import { RedirectError } from '../../router/errors';
 import { resolve } from '../../../src/container';
 import type { UserConfig } from '../../users/types';
 import type { UserRegisteredEvent } from '../../events/types';
@@ -28,23 +28,29 @@ export default async function processRegistration(
   // Validation
   if (!email || !password || !passwordConfirm) {
     const session = await setFlashError(sessionId, 'All fields required');
-    const response = redirect('/admin/register');
-    response.headers.append('Set-Cookie', createSessionCookie(session));
-    return response;
+    throw new RedirectError('/admin/register', {
+      headers: {
+        'Set-Cookie': createSessionCookie(session),
+      },
+    });
   }
 
   if (password !== passwordConfirm) {
     const session = await setFlashError(sessionId, 'Passwords do not match');
-    const response = redirect('/admin/register');
-    response.headers.append('Set-Cookie', createSessionCookie(session));
-    return response;
+    throw new RedirectError('/admin/register', {
+      headers: {
+        'Set-Cookie': createSessionCookie(session),
+      },
+    });
   }
 
   if (password.length < 8) {
     const session = await setFlashError(sessionId, 'Password must be at least 8 characters');
-    const response = redirect('/admin/register');
-    response.headers.append('Set-Cookie', createSessionCookie(session));
-    return response;
+    throw new RedirectError('/admin/register', {
+      headers: {
+        'Set-Cookie': createSessionCookie(session),
+      },
+    });
   }
 
   // Check if email already exists (read-only query)
@@ -55,9 +61,11 @@ export default async function processRegistration(
     const session = await setFlashErrors(sessionId, {
       email: ['Email already registered']
     });
-    const response = redirect('/admin/register');
-    response.headers.append('Set-Cookie', createSessionCookie(session));
-    return response;
+    throw new RedirectError('/admin/register', {
+      headers: {
+        'Set-Cookie': createSessionCookie(session),
+      },
+    });
   }
 
   // Hash password with argon2
@@ -84,9 +92,11 @@ export default async function processRegistration(
 
   // Set success flash and redirect to login
   const session = await setFlashSuccess(sessionId, 'Account created successfully! Please log in.');
-  const response = redirect('/admin/login');
-  response.headers.append('Set-Cookie', createSessionCookie(session));
-  return response;
+  throw new RedirectError('/admin/login', {
+    headers: {
+      'Set-Cookie': createSessionCookie(session),
+    },
+  });
 }
 
 /**

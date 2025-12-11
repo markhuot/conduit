@@ -1,5 +1,5 @@
 import type { RequestContext } from '../../router/types';
-import { redirect } from '../../router/response';
+import { RedirectError } from '../../router/errors';
 import { createSession, createSessionCookie, setFlashError, getSessionIdFromRequest } from '../../session';
 import { resolve } from '../../../src/container';
 import type { UserConfig } from '../../users/types';
@@ -22,9 +22,11 @@ export default async function authenticate(
   // Validate input
   if (!email || !password) {
     const session = await setFlashError(sessionId, 'Email and password required');
-    const response = redirect('/admin/login');
-    response.headers.append('Set-Cookie', createSessionCookie(session));
-    return response;
+    throw new RedirectError('/admin/login', {
+      headers: {
+        'Set-Cookie': createSessionCookie(session),
+      },
+    });
   }
   
   // Lookup user in store
@@ -33,9 +35,11 @@ export default async function authenticate(
   
   if (!user) {
     const session = await setFlashError(sessionId, 'Invalid credentials');
-    const response = redirect('/admin/login');
-    response.headers.append('Set-Cookie', createSessionCookie(session));
-    return response;
+    throw new RedirectError('/admin/login', {
+      headers: {
+        'Set-Cookie': createSessionCookie(session),
+      },
+    });
   }
   
   // Verify password
@@ -43,17 +47,20 @@ export default async function authenticate(
   
   if (!valid) {
     const session = await setFlashError(sessionId, 'Invalid credentials');
-    const response = redirect('/admin/login');
-    response.headers.append('Set-Cookie', createSessionCookie(session));
-    return response;
+    throw new RedirectError('/admin/login', {
+      headers: {
+        'Set-Cookie': createSessionCookie(session),
+      },
+    });
   }
   
   // Create session (use user ID instead of email)
   const session = await createSession(user.id);
   
   // Set cookie and redirect
-  const response = redirect(returnTo);
-  response.headers.append('Set-Cookie', createSessionCookie(session));
-  
-  return response;
+  throw new RedirectError(returnTo, {
+    headers: {
+      'Set-Cookie': createSessionCookie(session),
+    },
+  });
 }

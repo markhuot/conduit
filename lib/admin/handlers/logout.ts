@@ -1,5 +1,5 @@
 import type { RequestContext } from '../../router/types';
-import { redirect } from '../../router/response';
+import { RedirectError } from '../../router/errors';
 import { deleteSession, getSessionFromRequest, createLogoutCookie } from '../../session';
 
 /**
@@ -16,8 +16,9 @@ export default async function logout(
     await deleteSession(session.id);
   }
   
-  const response = redirect('/admin/login');
-  response.headers.append('Set-Cookie', createLogoutCookie());
-  
-  return response;
+  throw new RedirectError('/admin/login', {
+    headers: {
+      'Set-Cookie': createLogoutCookie(),
+    },
+  });
 }

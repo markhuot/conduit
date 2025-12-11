@@ -3,6 +3,7 @@ import { requireAuth, redirectIfAuth } from '../middleware';
 import { createSession, createSessionCookie } from '../../session';
 import { container } from '../../../src/container';
 import { MemorySessionStore } from '../../session/stores/memory';
+import { RedirectError, UnauthorizedError } from '../../router/errors';
 import type { RequestContext } from '../../router/types';
 
 describe('Auth middleware', () => {
@@ -14,7 +15,7 @@ describe('Auth middleware', () => {
   });
 
   describe('requireAuth', () => {
-    it('redirects to login when no session', async () => {
+    it('throws RedirectError when no session', async () => {
       const middleware = requireAuth();
       const request = new Request('http://localhost:3000/admin/dashboard');
       const ctx: RequestContext = {
@@ -25,11 +26,15 @@ describe('Auth middleware', () => {
       };
 
       const next = async () => new Response('Protected content');
-      const response = await middleware(ctx, next);
-
-      expect(response.status).toBe(302);
-      expect(response.headers.get('location')).toContain('/admin/login');
-      expect(response.headers.get('location')).toContain('return=');
+      
+      try {
+        await middleware(ctx, next);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(RedirectError);
+        expect((error as RedirectError).headers.Location).toContain('/admin/login');
+        expect((error as RedirectError).headers.Location).toContain('return=');
+      }
     });
 
     it('calls next() when session is valid', async () => {
@@ -64,7 +69,7 @@ describe('Auth middleware', () => {
 
     it('uses custom onUnauthorized handler', async () => {
       const middleware = requireAuth({
-        onUnauthorized: () => new Response('Custom unauthorized', { status: 401 }),
+        onUnauthorized: () => { throw new UnauthorizedError('Custom unauthorized') },
       });
       
       const request = new Request('http://localhost:3000/admin/dashboard');
@@ -76,15 +81,19 @@ describe('Auth middleware', () => {
       };
 
       const next = async () => new Response('Protected content');
-      const response = await middleware(ctx, next);
-
-      expect(response.status).toBe(401);
-      expect(await response.text()).toBe('Custom unauthorized');
+      
+      try {
+        await middleware(ctx, next);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(UnauthorizedError);
+        expect((error as UnauthorizedError).message).toBe('Custom unauthorized');
+      }
     });
   });
 
   describe('redirectIfAuth', () => {
-    it('redirects to dashboard when session exists', async () => {
+    it('throws RedirectError when session exists', async () => {
       const session = await createSession('admin');
       
       const middleware = redirectIfAuth();
@@ -101,10 +110,14 @@ describe('Auth middleware', () => {
       };
 
       const next = async () => new Response('Login page');
-      const response = await middleware(ctx, next);
-
-      expect(response.status).toBe(302);
-      expect(response.headers.get('location')).toBe('/admin/dashboard');
+      
+      try {
+        await middleware(ctx, next);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(RedirectError);
+        expect((error as RedirectError).headers.Location).toBe('/admin/dashboard');
+      }
     });
 
     it('calls next() when no session', async () => {
@@ -129,7 +142,7 @@ describe('Auth middleware', () => {
       expect(response.status).toBe(200);
     });
 
-    it('redirects to custom path', async () => {
+    it('throws RedirectError to custom path', async () => {
       const session = await createSession('admin');
       
       const middleware = redirectIfAuth('/custom/path');
@@ -146,10 +159,14 @@ describe('Auth middleware', () => {
       };
 
       const next = async () => new Response('Login page');
-      const response = await middleware(ctx, next);
-
-      expect(response.status).toBe(302);
-      expect(response.headers.get('location')).toBe('/custom/path');
+      
+      try {
+        await middleware(ctx, next);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(RedirectError);
+        expect((error as RedirectError).headers.Location).toBe('/custom/path');
+      }
     });
   });
 });

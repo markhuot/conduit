@@ -1,7 +1,8 @@
 /**
  * Response helper utilities for common HTTP responses
  * 
- * Framework-agnostic utilities for JSON, errors, redirects, etc.
+ * Framework-agnostic utilities for JSON responses.
+ * For error handling, use error classes from lib/router/errors.ts
  * For framework-specific UI rendering, see:
  * - lib/router/react/response.tsx (React SSR)
  * - lib/router/vue/response.ts (Vue SSR - future)
@@ -9,6 +10,20 @@
 
 /**
  * Create a JSON response
+ * 
+ * @example
+ * ```ts
+ * // Success response
+ * return json({ data: user });
+ * 
+ * // With custom status
+ * return json({ data: post }, { status: 201 });
+ * 
+ * // With headers
+ * return json({ data: result }, { 
+ *   headers: { 'X-Custom': 'value' } 
+ * });
+ * ```
  */
 export function json(
   data: unknown,
@@ -29,73 +44,16 @@ export function json(
 }
 
 /**
- * Create an error response
- */
-export function error(
-  message: string,
-  options: {
-    status?: number;
-    code?: string;
-    details?: unknown;
-  } = {}
-): Response {
-  const { status = 500, code, details } = options;
-  
-  return json(
-    {
-      error: {
-        message,
-        code,
-        details,
-      },
-    },
-    { status }
-  );
-}
-
-/**
- * Create a 404 Not Found response
- */
-export function notFound(message = 'Not found'): Response {
-  return error(message, { status: 404, code: 'NOT_FOUND' });
-}
-
-/**
- * Create a 400 Bad Request response
- */
-export function badRequest(message: string, details?: unknown): Response {
-  return error(message, { status: 400, code: 'BAD_REQUEST', details });
-}
-
-/**
- * Create a 401 Unauthorized response
- */
-export function unauthorized(message = 'Unauthorized'): Response {
-  return error(message, { status: 401, code: 'UNAUTHORIZED' });
-}
-
-/**
- * Create a 403 Forbidden response
- */
-export function forbidden(message = 'Forbidden'): Response {
-  return error(message, { status: 403, code: 'FORBIDDEN' });
-}
-
-/**
  * Create a 204 No Content response
+ * 
+ * @example
+ * ```ts
+ * // Delete endpoint
+ * await deleteUser(id);
+ * return noContent();
+ * ```
  */
 export function noContent(): Response {
   return new Response(null, { status: 204 });
 }
 
-/**
- * Create a redirect response
- */
-export function redirect(url: string, status: 301 | 302 | 307 | 308 = 302): Response {
-  return new Response(null, {
-    status,
-    headers: {
-      Location: url,
-    },
-  });
-}

@@ -1,4 +1,5 @@
 import type { Router } from '../router';
+import { errorToResponse } from '../router/errors';
 
 /**
  * Bun HTTP server adapter
@@ -32,21 +33,7 @@ export function createBunServer(router: Router, options: BunAdapterOptions = {})
 
     error(error: Error): Response {
       console.error('Server error:', error);
-      
-      return new Response(
-        JSON.stringify({
-          error: {
-            message: development ? error.message : 'Internal server error',
-            stack: development ? error.stack : undefined,
-          },
-        }),
-        {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      return errorToResponse(error, development);
     },
   });
 }
