@@ -1,4 +1,4 @@
-import { resolve } from '../../src/container';
+import { resolve } from '../container';
 
 /**
  * Flash messages from session

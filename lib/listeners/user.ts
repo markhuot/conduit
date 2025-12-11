@@ -18,7 +18,7 @@
 
 import type { EventListener } from '../events/types';
 import type { UserRegisteredEvent } from '../events/types';
-import { resolve } from '../../src/container';
+import { resolve } from '../container';
 import type { UserConfig } from '../users/types';
 
 export class UserListener implements EventListener<UserRegisteredEvent> {

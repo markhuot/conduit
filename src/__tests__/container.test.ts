@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { container, register, resolve, set, has } from '../container';
+import { container, register, resolve, set, has } from '../../lib/container';
 
 describe('Service Container', () => {
   beforeEach(() => {

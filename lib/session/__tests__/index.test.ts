@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { createSession, getSession, deleteSession } from '../index';
-import { container } from '../../../src/container';
+import { container } from '../../container';
 import { MemorySessionStore } from '../stores/memory';
 
 describe('Session management', () => {

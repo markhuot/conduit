@@ -15,7 +15,7 @@
 import { FileEventWriter } from '../lib/events/writers/file';
 import { EventStore } from '../lib/events/store';
 import { UserListener } from '../lib/listeners/user';
-import { register } from '../src/container';
+import { register } from '../lib/container';
 
 // Create event writer (constructor creates directories)
 const eventWriter = new FileEventWriter();

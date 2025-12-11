@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { UserListener } from '../user';
 import { FileUserStore } from '../../users/stores/file';
-import { container } from '../../../src/container';
+import { container } from '../../container';
 import { rmSync } from 'fs';
 import type { UserRegisteredEvent } from '../../events/types';
 

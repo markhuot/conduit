@@ -1,7 +1,7 @@
 import type { RequestContext } from '../../router/types';
 import { RedirectError } from '../../router/errors';
 import { createSession, createSessionCookie, setFlashError, getSessionIdFromRequest } from '../../session';
-import { resolve } from '../../../src/container';
+import { resolve } from '../../container';
 import type { UserConfig } from '../../users/types';
 
 /**

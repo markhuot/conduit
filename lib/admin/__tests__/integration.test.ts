@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { Router } from '../../router';
-import { container } from '../../../src/container';
+import { container } from '../../container';
 import { MemorySessionStore } from '../../session/stores/memory';
 import { FileUserStore } from '../../users/stores/file';
 import { EventStore } from '../../events/store';

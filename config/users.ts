@@ -9,7 +9,7 @@
  */
 
 import { FileUserStore } from '../lib/users/stores/file';
-import { register } from '../src/container';
+import { register } from '../lib/container';
 
 // Register user store in container
 // Constructor creates directories on instantiation

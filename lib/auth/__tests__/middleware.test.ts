@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { requireAuth, redirectIfAuth } from '../middleware';
 import { createSession, createSessionCookie } from '../../session';
-import { container } from '../../../src/container';
+import { container } from '../../container';
 import { MemorySessionStore } from '../../session/stores/memory';
 import { RedirectError, UnauthorizedError } from '../../router/errors';
 import type { RequestContext } from '../../router/types';

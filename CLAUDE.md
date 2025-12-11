@@ -213,6 +213,7 @@ class EventStore {
 ├── CLAUDE.md          # This file - project context for AI agents
 ├── README.md          # Human-facing documentation
 ├── lib/               # 📦 VENDOR LIBRARY CODE (reusable CMS core)
+│   ├── container.ts   # Dependency injection container (singleton pattern)
 │   ├── events/        # Core event type definitions
 │   ├── store/         # Event store implementations
 │   ├── listeners/     # Base listener interfaces & built-in listeners
@@ -222,6 +223,10 @@ class EventStore {
 │   ├── listeners/     # Custom event listeners
 │   ├── commands/      # Command handlers (project-specific)
 │   └── server/        # API server implementation
+├── config/            # Service configuration (registers services in container)
+│   ├── events.ts      # Event store and listener registration
+│   ├── users.ts       # User store registration
+│   └── session.ts     # Session store registration
 ├── data/              # File-based storage (dev environment)
 │   ├── events/        # Append-only event log (JSONL)
 │   ├── content/       # Content projections (readable by AI)

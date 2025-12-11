@@ -9,7 +9,7 @@
 
 import type { RequestContext } from '../../router/types';
 import { RedirectError } from '../../router/errors';
-import { resolve } from '../../../src/container';
+import { resolve } from '../../container';
 import type { UserConfig } from '../../users/types';
 import type { UserRegisteredEvent } from '../../events/types';
 import type { EventStore } from '../../events/store';

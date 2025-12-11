@@ -1,5 +1,5 @@
 import { MemorySessionStore } from '../lib/session/stores/memory';
-import { register } from '../src/container';
+import { register } from '../lib/container';
 
 /**
  * Session storage configuration
