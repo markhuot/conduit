@@ -32,7 +32,9 @@ registerRoutes(router);
  */
 const server = createBunServer(router, {
   port: Number(process.env.PORT) || 3000,
-  hostname: process.env.HOSTNAME || '127.0.0.1',
+  // LISTEN_HOST: Network interface to bind to (0.0.0.0 = all interfaces, 127.0.0.1 = localhost only)
+  // This is NOT the public hostname - that comes from the request's Host header
+  hostname: process.env.LISTEN_HOST || process.env.HOSTNAME || '127.0.0.1',
   development: process.env.NODE_ENV !== 'production',
 });
 

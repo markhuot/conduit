@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Helmet } from 'react-helmet-async';
 
 /**
  * Example custom layout for demonstration purposes
@@ -12,35 +13,41 @@ import type { ReactNode } from 'react';
 export interface CustomLayoutProps {
   children: ReactNode;
   theme?: 'light' | 'dark';
-  rootId?: string;
 }
 
 export function CustomLayout({
   children,
   theme = 'light',
-  rootId = 'app',
 }: CustomLayoutProps) {
   const themeClass = theme === 'dark' ? 'dark-theme' : 'light-theme';
   
   const themeStyles = `
-    .dark-theme { background: #1a1a1a; color: #fff; }
-    .light-theme { background: #fff; color: #000; }
+    .dark-theme { background: #1a1a1a; color: #fff; min-height: 100vh; }
+    .light-theme { background: #fff; color: #000; min-height: 100vh; }
+    header { padding: 1rem; border-bottom: 1px solid currentColor; }
+    main { padding: 2rem; }
+    footer { padding: 1rem; border-top: 1px solid currentColor; margin-top: auto; }
   `;
   
   return (
-    <html lang="en" className={themeClass} data-layout="custom">
-      <head>
-        <style dangerouslySetInnerHTML={{ __html: themeStyles }} />
-      </head>
-      <body>
+    <>
+      <Helmet>
+        <html lang="en" className={themeClass} />
+        <style>{themeStyles}</style>
+        <title>Custom Layout - Project Conduit</title>
+      </Helmet>
+      <div className={themeClass}>
         <header>
           <nav>Custom Navigation</nav>
         </header>
-        <main id={rootId}>{children}</main>
+        <main>{children}</main>
         <footer>
           <p>Custom Footer - {new Date().getFullYear()}</p>
         </footer>
-      </body>
-    </html>
+      </div>
+    </>
   );
 }
+
+// Default export for dynamic imports
+export default CustomLayout;

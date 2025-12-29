@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "bun run dev:server & bun run dev:ui",
-    "dev:server": "bun --hot src/server.ts",
-    "dev:ui": "vite",
-    "dev:network": "HOSTNAME=0.0.0.0 bun run dev",
-    "build": "tsc --noEmit && vite build"
+    "dev:server": "NODE_ENV=development bun --hot src/server.ts",
+    "dev:ui": "vite --host",
+    "dev:network": "LISTEN_HOST=0.0.0.0 bun run dev",
+    "build": "vite build",
+    "build:check": "tsc --noEmit && vite build"
   },
   "devDependencies": {
     "@types/bun": "latest",
